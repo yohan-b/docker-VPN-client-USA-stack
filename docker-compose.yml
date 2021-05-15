@@ -1,0 +1,63 @@
+# needs at least docker-compose 1.18.0 (1.10.0 for sysctls option and 1.18.0 for custom network name)
+version: "2.1"
+ 
+services:
+
+  vpn-client:
+    image: vpn-client:$VERSION_VPN_CLIENT
+    build: "https://git.scimetis.net/yohan/docker-VPN-client.git"
+    restart: always
+    volumes:
+      - ./keys_privateinternetaccess:/etc/openvpn/keys_privateinternetaccess:Z
+      - ./client_privateinternetaccess_US_East.conf:/etc/openvpn/openvpn.conf:Z
+      - ./post-up.sh:/root/post-up.sh:Z
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      net.ipv4.ip_forward: 1
+    devices:
+      - "/dev/net/tun:/dev/net/tun"
+    dns: 80.67.169.12
+    networks:
+      openvpn-USA-network:
+        ipv4_address: 172.31.0.2
+
+  l2tp-client:
+    image: l2tp-client:$VERSION_L2TP_CLIENT
+    build: "https://git.scimetis.net/yohan/docker-l2tp-client.git"
+    restart: always
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - "/dev/net/tun:/dev/net/tun"
+      - "/dev/ppp:/dev/ppp"
+    networks:
+      openvpn-USA-network:
+        ipv4_address: 172.31.0.3
+
+  proxy:
+    image: proxy:$VERSION_PROXY
+    build: "https://git.scimetis.net/yohan/docker-proxy.git"
+    restart: always
+    ports:
+      - 3129:3128/tcp
+    volumes:
+      - ./users:/etc/squid/users:Z
+      - ./entrypoint.sh:/root/entrypoint.sh:Z
+    entrypoint: /root/entrypoint.sh
+    cap_add:
+      - SYS_PTRACE
+      - NET_ADMIN
+    environment:
+      subnet: 172.31.0
+    networks:
+      openvpn-USA-network:
+        ipv4_address: 172.31.0.4
+
+networks:
+  openvpn-USA-network:
+    name: openvpn-USA-network
+    ipam:
+      config:
+        - subnet: 172.31.0.0/24
+
